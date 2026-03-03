@@ -7,7 +7,6 @@ void main() {
   const String sourceFile = "connection_test.dart";
 
   setUpAll(() async {
-    // Memuat env sekali di awal untuk semua test
     await dotenv.load(fileName: ".env");
   });
 
@@ -16,33 +15,29 @@ void main() {
     () async {
       final mongoService = MongoService();
 
-      // Memanfaatkan LogHelper baru yang sudah pakai dev.log dan print berwarna
       await LogHelper.writeLog(
         "--- START CONNECTION TEST ---",
         source: sourceFile,
       );
 
       try {
-        // Mengetes koneksi
         await mongoService.connect();
 
-        // Ekspektasi: URI tidak null dan koneksi berhasil
         expect(dotenv.env['MONGODB_URI'], isNotNull);
 
         await LogHelper.writeLog(
           "SUCCESS: Koneksi Atlas Terverifikasi",
           source: sourceFile,
-          level: 2, // INFO (Hijau)
+          level: 2,
         );
       } catch (e) {
         await LogHelper.writeLog(
           "ERROR: Kegagalan koneksi - $e",
           source: sourceFile,
-          level: 1, // ERROR (Merah)
+          level: 1,
         );
         fail("Koneksi gagal: $e");
       } finally {
-        // Selalu tutup koneksi agar tidak menggantung di dashboard Atlas
         await mongoService.close();
         await LogHelper.writeLog("--- END TEST ---", source: sourceFile);
       }

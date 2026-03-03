@@ -12,10 +12,8 @@ class MongoService {
   DbCollection? _collection;
   final String _source = "mongo_service.dart";
 
-  // Factory constructor untuk mengembalikan instance tunggal
   factory MongoService() => _instance;
 
-  // Private constructor internal
   MongoService._internal();
 
   /// Fungsi Internal untuk memastikan koleksi siap digunakan (Anti-LateInitializationError)
