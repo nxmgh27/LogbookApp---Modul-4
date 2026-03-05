@@ -1,4 +1,4 @@
-import 'dart:convert'; // Wajib ditambahkan untuk jsonEncode & jsonDecode
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mongo_dart/mongo_dart.dart';
@@ -18,21 +18,21 @@ class LogController {
     loadFromDisk();
   }
 
-  // Tambah data baru ke Cloud
-  Future<void> addLog(String title, String desc, String category) async {
+  Future<void> addLog(String title, String desc, String category, String owner) async {
     final newLog = LogModel(
       id: ObjectId(),
       title: title,
       description: desc,
       category: category,
+      owner: owner,
       date: DateTime.now(),
+      createdAt: DateTime.now().toIso8601String(),
     );
 
     try {
-      // Kirim ke MongoDB Atlas
+      
       await MongoService().insertLog(newLog);
 
-      // Update UI
       final currentLogs = List<LogModel>.from(logsNotifier.value);
       currentLogs.add(newLog);
       logsNotifier.value = currentLogs;
@@ -46,7 +46,6 @@ class LogController {
     }
   }
 
-  // Memperbarui data di Cloud
   Future<void> updateLog(
     int index,
     String newTitle,
@@ -62,6 +61,8 @@ class LogController {
       description: newDesc,
       category: category,
       date: DateTime.now(),
+      createdAt: oldLog.createdAt,
+      owner: oldLog.owner,
     );
 
     try {

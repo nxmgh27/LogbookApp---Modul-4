@@ -21,7 +21,7 @@ class _LogViewState extends State<LogView> {
   final TextEditingController _contentController = TextEditingController();
   final TextEditingController _searchController = TextEditingController();
 
-  final List<String> _categories = ["Pekerjaan", "Belajar", "Pribadi"];
+  final List<String> _categories = ["Pekerjaan", "Urgent", "Pribadi"];
   String _selectedCategory = "Pekerjaan";
 
   late Future<List<LogModel>> _logFuture;
@@ -29,12 +29,12 @@ class _LogViewState extends State<LogView> {
   @override
   void initState() {
     super.initState();
-    _logFuture = MongoService().getLogs();
+    _logFuture = MongoService().getLog(widget.username);
   }
 
   void _refreshData() {
     setState(() {
-      _logFuture = MongoService().getLogs();
+      _logFuture = MongoService().getLog(widget.username);
     });
   }
 
@@ -46,7 +46,6 @@ class _LogViewState extends State<LogView> {
     super.dispose();
   }
 
-  // Dialog Konfirmasi Hapus
   Future<bool?> _confirmDelete(int index) async {
     return await showDialog<bool>(
       context: context,
@@ -84,7 +83,7 @@ class _LogViewState extends State<LogView> {
     _titleController.clear();
     _contentController.clear();
     _selectedCategory = _categories.first;
-
+    
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -107,7 +106,7 @@ class _LogViewState extends State<LogView> {
                 maxLines: 3,
               ),
               DropdownButtonFormField<String>(
-                value: _selectedCategory,
+                initialValue: _selectedCategory,
                 items: _categories
                     .map((c) => DropdownMenuItem(value: c, child: Text(c)))
                     .toList(),
@@ -132,12 +131,18 @@ class _LogViewState extends State<LogView> {
               ),
               onPressed: () async {
                 if (_titleController.text.isNotEmpty) {
+                  final navigator = Navigator.of(context);
+
                   await _controller.addLog(
                     _titleController.text,
                     _contentController.text,
                     _selectedCategory,
+                    widget.username,
                   );
-                  Navigator.pop(context);
+
+                  if (!mounted) return;
+
+                  navigator.pop();
                   _refreshData();
                 }
               },
@@ -176,7 +181,7 @@ class _LogViewState extends State<LogView> {
                 maxLines: 3,
               ),
               DropdownButtonFormField<String>(
-                value: _selectedCategory,
+                initialValue: _selectedCategory,
                 items: _categories
                     .map((c) => DropdownMenuItem(value: c, child: Text(c)))
                     .toList(),
@@ -200,13 +205,18 @@ class _LogViewState extends State<LogView> {
                 foregroundColor: const Color(0xFFECE69D),
               ),
               onPressed: () async {
+                final navigator = Navigator.of(context);
+
                 await _controller.updateLog(
                   index,
                   _titleController.text,
                   _contentController.text,
                   _selectedCategory,
                 );
-                Navigator.pop(context);
+
+                if (!mounted) return;
+
+                navigator.pop();
                 _refreshData();
               },
               child: const Text("Update"),
@@ -243,6 +253,61 @@ class _LogViewState extends State<LogView> {
               );
             },
             child: const Text("Keluar"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorWidget() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.wifi_off_rounded, size: 80, color: Colors.redAccent),
+          const SizedBox(height: 24),
+          const Text(
+            "Waduh, koneksi terputus!",
+            style: TextStyle(
+              color: Color(0xFF243C2C),
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            "Pastikan internetmu aktif dan coba lagi.",
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Color(0xFF243C2C), fontSize: 14),
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF243C2C),
+              foregroundColor: const Color(0xFFECE69D),
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+            ),
+            onPressed: _refreshData,
+            child: const Text("Coba Lagi"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyWidget() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.cloud_off, size: 48, color: Color(0xFF243C2C)),
+          const SizedBox(height: 16),
+          const Text(
+            "Tidak ada catatan",
+            style: TextStyle(color: Color(0xFF243C2C), fontSize: 16),
           ),
         ],
       ),
@@ -289,7 +354,7 @@ class _LogViewState extends State<LogView> {
                     color: Color(0xFF243C2C),
                   ),
                   filled: true,
-                  fillColor: const Color(0xFFA9B6C4).withOpacity(0.8),
+                  fillColor: const Color(0xFFA9B6C4).withValues(alpha: 0.8),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,
@@ -301,91 +366,72 @@ class _LogViewState extends State<LogView> {
               child: FutureBuilder<List<LogModel>>(
                 future: _logFuture,
                 builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(
-                      child: CircularProgressIndicator(
-                        color: Color(0xFF243C2C),
-                      ),
-                    );
-                  }
-
                   if (snapshot.hasError) {
-                    return Center(
-                      child: Text(
-                        "Error: ${snapshot.error}",
-                        style: const TextStyle(color: Colors.red),
-                      ),
-                    );
+                    return _buildErrorWidget();
                   }
 
-                  final allLogs = snapshot.data ?? [];
-                  final filteredLogs = allLogs
-                      .where(
-                        (log) => log.title.toLowerCase().contains(
-                          _searchController.text.toLowerCase(),
-                        ),
-                      )
-                      .toList();
-
-                  if (filteredLogs.isEmpty) {
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(
-                            Icons.cloud_off,
-                            size: 80,
-                            color: Color(0xFF243C2C),
+                  if (snapshot.hasData) {
+                    final allLogs = snapshot.data!;
+                    final filteredLogs = allLogs
+                        .where(
+                          (log) => log.title.toLowerCase().contains(
+                            _searchController.text.toLowerCase(),
                           ),
-                          const SizedBox(height: 10),
-                          Text(
-                            _searchController.text.isEmpty
-                                ? "Belum ada catatan di Cloud"
-                                : "Catatan tidak ditemukan",
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF243C2C),
+                        )
+                        .toList();
+
+                    if (filteredLogs.isEmpty) return _buildEmptyWidget();
+
+                    return RefreshIndicator(
+                      color: const Color(0xFF243C2C),
+                      onRefresh: () async => _refreshData(),
+                      child: ListView.builder(
+                        itemCount: filteredLogs.length,
+                        itemBuilder: (context, index) {
+                          final log = filteredLogs[index];
+                          return Dismissible(
+                            key: Key(
+                              log.id?.oid ??
+                                  log.id?.toString() ??
+                                  index.toString(),
                             ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }
-
-                  return ListView.builder(
-                    itemCount: filteredLogs.length,
-                    itemBuilder: (context, index) {
-                      final log = filteredLogs[index];
-                      return Dismissible(
-                        key: Key(log.id?.toHexString() ?? index.toString()),
-                        direction: DismissDirection.endToStart,
-                        confirmDismiss: (direction) => _confirmDelete(index),
-                        onDismissed: (direction) async {
-                          await _controller.removeLog(index);
-                          _refreshData();
-                        },
-                        background: Container(
-                          color: Colors.red,
-                          alignment: Alignment.centerRight,
-                          padding: const EdgeInsets.only(right: 20),
-                          child: const Icon(Icons.delete, color: Colors.white),
-                        ),
-                        child: LogItemWidget(
-                          log: log,
-                          index: index,
-                          controller: _controller,
-                          onEdit: () => _showEditLogDialog(index, log),
-                          onDelete: () async {
-                            final confirm = await _confirmDelete(index);
-                            if (confirm == true) {
+                            direction: DismissDirection.endToStart,
+                            confirmDismiss: (direction) =>
+                                _confirmDelete(index),
+                            onDismissed: (direction) async {
                               await _controller.removeLog(index);
                               _refreshData();
-                            }
-                          },
-                        ),
-                      );
-                    },
+                            },
+                            background: Container(
+                              color: Colors.red,
+                              alignment: Alignment.centerRight,
+                              padding: const EdgeInsets.only(right: 20),
+                              child: const Icon(
+                                Icons.delete,
+                                color: Colors.white,
+                              ),
+                            ),
+                            child: LogItemWidget(
+                              index: index,
+                              log: log,
+                              controller: _controller,
+                              onEdit: () => _showEditLogDialog(index, log),
+                              onDelete: () async {
+                                final confirmed = await _confirmDelete(index);
+                                if (confirmed == true) {
+                                  await _controller.removeLog(index);
+                                  _refreshData();
+                                }
+                              },
+                            ),
+                          );
+                        },
+                      ),
+                    );
+                  }
+
+                  return const Center(
+                    child: CircularProgressIndicator(color: Color(0xFF243C2C)),
                   );
                 },
               ),

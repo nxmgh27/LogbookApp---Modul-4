@@ -1,12 +1,13 @@
 import 'package:mongo_dart/mongo_dart.dart';
 
 class LogModel {
-  // Menggunakan ObjectId? agar kompatibel dengan identitas unik global MongoDB [cite: 287, 288]
-  final ObjectId? id; 
+  final ObjectId? id;
   final String title;
   final String description;
   final DateTime date;
   final String category;
+  final String createdAt;
+  final String owner;
 
   LogModel({
     this.id,
@@ -14,26 +15,33 @@ class LogModel {
     required this.description,
     required this.date,
     required this.category,
+    required this.createdAt,
+    required this.owner,
   });
 
-  // CONVERT
   Map<String, dynamic> toMap() {
     return {
-      '_id': id ?? ObjectId(), 
+      '_id': id ?? ObjectId(),
       'title': title,
       'description': description,
       'category': category,
       'date': date.toIso8601String(),
+      'createdAt': createdAt,
+      'owner': owner,
     };
   }
 
   factory LogModel.fromMap(Map<String, dynamic> map) {
     return LogModel(
-      id: map['_id'] as ObjectId?, 
+      id: map['_id'] as ObjectId?,
       title: map['title'] ?? '',
       description: map['description'] ?? '',
-      category: map['category'] ?? '',
-      date: map['date'] != null ? DateTime.parse(map['date']) : DateTime.now(),
+      date: map['date'] != null ? DateTime.now() : DateTime.now(),
+      category: map['category'] ?? 'Pribadi',
+      createdAt: map['createdAt'] != null
+          ? map['createdAt'].toString()
+          : DateTime.now().toIso8601String(),
+      owner: map['owner'] ?? 'unknown',
     );
   }
 }

@@ -2,12 +2,11 @@ import 'package:mongo_dart/mongo_dart.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:logbook_app_086/features/logbook/models/log_model.dart';
 import 'package:logbook_app_086/helpers/log_helper.dart';
+import 'dart:io';
 
 class MongoService {
-  // Implementasi Singleton Pattern
   static final MongoService _instance = MongoService._internal();
 
-  // Variabel untuk menyimpan status koneksi dan koleksi
   Db? _db;
   DbCollection? _collection;
   final String _source = "mongo_service.dart";
@@ -16,29 +15,31 @@ class MongoService {
 
   MongoService._internal();
 
-  /// Fungsi Internal untuk memastikan koleksi siap digunakan (Anti-LateInitializationError)
   Future<DbCollection> _getSafeCollection() async {
-    if (_db == null || !_db!.isConnected || _collection == null) {
+    if (_db != null && _db!.state == State.opening) {
       await LogHelper.writeLog(
-        "INFO: Koleksi belum siap, mencoba rekoneksi...",
+        "WAIT: Database sedang membuka, menunggu sinkronisasi...",
         source: _source,
         level: 3,
       );
+      while (_db!.state == State.opening) {
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
+    }
+
+    if (_db == null || !_db!.isConnected || _collection == null) {
       await connect();
     }
     return _collection!;
   }
 
-  /// Inisialisasi Koneksi ke MongoDB Atlas
   Future<void> connect() async {
     try {
-      // Mengambil URI dari file .env untuk keamanan kredensial
       final dbUri = dotenv.env['MONGODB_URI'];
       if (dbUri == null) throw Exception("MONGODB_URI tidak ditemukan di .env");
 
       _db = await Db.create(dbUri);
 
-      // Timeout 15 detik agar lebih toleran terhadap jaringan seluler
       await _db!.open().timeout(
         const Duration(seconds: 15),
         onTimeout: () {
@@ -48,7 +49,6 @@ class MongoService {
         },
       );
 
-      // Menentukan koleksi 'logs' sebagai wadah data
       _collection = _db!.collection('logs');
 
       await LogHelper.writeLog(
@@ -66,9 +66,19 @@ class MongoService {
     }
   }
 
-  /// READ: Mengambil data dari Cloud
   Future<List<LogModel>> getLogs() async {
     try {
+      try {
+        final result = await InternetAddress.lookup('google.com');
+        if (result.isEmpty || result[0].rawAddress.isEmpty) {
+          throw Exception("No Internet Access");
+        }
+      } on SocketException catch (_) {
+        throw Exception(
+          "Koneksi Internet Terputus",
+        );
+      }
+
       final collection = await _getSafeCollection();
 
       await LogHelper.writeLog(
@@ -77,7 +87,6 @@ class MongoService {
         level: 3,
       );
 
-      // Mengambil data dan melakukan mapping dari BSON ke LogModel
       final List<Map<String, dynamic>> data = await collection.find().toList();
       return data.map((json) => LogModel.fromMap(json)).toList();
     } catch (e) {
@@ -86,15 +95,26 @@ class MongoService {
         source: _source,
         level: 1,
       );
-      return [];
+      rethrow;
     }
   }
 
-  /// CREATE: Menambahkan data baru ke Cloud
+  Future<List<LogModel>> getLog(String username) async {
+    try {
+      final collection = await _getSafeCollection();
+      final List<Map<String, dynamic>> data = await collection
+          .find(where.eq('owner', username))
+          .toList();
+
+      return data.map((json) => LogModel.fromMap(json)).toList();
+    } catch (e) {
+      rethrow; 
+    }
+  }
+
   Future<void> insertLog(LogModel log) async {
     try {
       final collection = await _getSafeCollection();
-      // Mengirim data dalam format BSON/Map
       await collection.insertOne(log.toMap());
 
       await LogHelper.writeLog(
@@ -112,7 +132,6 @@ class MongoService {
     }
   }
 
-  /// UPDATE: Memperbarui data berdasarkan ID unik
   Future<void> updateLog(LogModel log) async {
     try {
       final collection = await _getSafeCollection();
@@ -120,7 +139,6 @@ class MongoService {
         throw Exception("ID Log tidak ditemukan untuk update");
       }
 
-      // Melakukan pembaruan dokumen berdasarkan ObjectId
       await collection.replaceOne(where.id(log.id!), log.toMap());
 
       await LogHelper.writeLog(
@@ -138,11 +156,10 @@ class MongoService {
     }
   }
 
-  /// DELETE: Menghapus dokumen dari Cloud
   Future<void> deleteLog(ObjectId id) async {
     try {
       final collection = await _getSafeCollection();
-      // Menghapus dokumen menggunakan kriteria filter ID
+
       await collection.remove(where.id(id));
 
       await LogHelper.writeLog(
@@ -160,7 +177,6 @@ class MongoService {
     }
   }
 
-  /// Fungsi untuk menutup koneksi database
   Future<void> close() async {
     if (_db != null) {
       await _db!.close();

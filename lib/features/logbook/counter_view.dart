@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'counter_controller.dart';
-import '../onboarding/onboarding_view.dart';
 import '../auth/login_view.dart';
 
 class CounterView extends StatefulWidget {
@@ -36,8 +35,12 @@ class _CounterViewState extends State<CounterView> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    return WillPopScope(
-      onWillPop: () async {
+    return PopScope(
+      canPop: false, // Menahan fungsi back bawaan sistem
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return; // Jika sudah pop, jangan jalankan lagi
+
+        // Logika navigasi Nike tetap sama, hanya pindah tempat ke sini
         Navigator.pushReplacement(
           context,
           PageRouteBuilder(
@@ -45,19 +48,18 @@ class _CounterViewState extends State<CounterView> {
                 const LoginView(),
             transitionsBuilder:
                 (context, animation, secondaryAnimation, child) {
-                  var tween = Tween(
-                    begin: const Offset(-1, 0),
-                    end: Offset.zero,
-                  ).chain(CurveTween(curve: Curves.easeInOut));
-                  return SlideTransition(
-                    position: animation.drive(tween),
-                    child: child,
-                  );
-                },
+              var tween = Tween(
+                begin: const Offset(-1, 0),
+                end: Offset.zero,
+              ).chain(CurveTween(curve: Curves.easeInOut));
+              return SlideTransition(
+                position: animation.drive(tween),
+                child: child,
+              );
+            },
             transitionDuration: const Duration(milliseconds: 500),
           ),
         );
-        return false;
       },
       child: Scaffold(
         appBar: AppBar(
@@ -213,7 +215,7 @@ class _CounterViewState extends State<CounterView> {
                             )
                           : ListView.separated(
                               itemCount: _controller.history.length,
-                              separatorBuilder: (_, __) =>
+                              separatorBuilder: (_, _) =>
                                   const Divider(height: 20),
                               itemBuilder: (context, index) {
                                 final item = _controller.history[index];
@@ -238,7 +240,7 @@ class _CounterViewState extends State<CounterView> {
                                     horizontal: 12,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: iconColor.withOpacity(0.1),
+                                    color: iconColor.withValues(alpha: 0.1),
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: Row(

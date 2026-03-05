@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../auth/login_view.dart';
 
 class OnboardingView extends StatefulWidget {
-  const OnboardingView({Key? key}) : super(key: key);
+  const OnboardingView({super.key});
 
   @override
   State<OnboardingView> createState() => _OnboardingViewState();
@@ -75,8 +75,8 @@ class _OnboardingViewState extends State<OnboardingView> {
           ),
 
           // Overlay
-          Container(color: const Color(0xFF103A57).withOpacity(0.65)),
-
+          Container(color: const Color(0xFF103A57).withValues(alpha: 0.65)),
+          
           SafeArea(
             child: Column(
               children: [
